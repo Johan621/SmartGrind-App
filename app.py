@@ -16,10 +16,8 @@ except Exception:
 MODEL_NAME = "gemini-2.5-flash"
 
 # Utility: call Gemini (Google GenAI SDK)
-# Utility: call Gemini (Google GenAI SDK)
 def call_gemini(prompt: str, max_output_tokens: int = 512) -> str:
     
-    # 1. Get the API key from Streamlit's secrets
     api_key = st.secrets.get("GEMINI_API_KEY")
 
     if not api_key:
@@ -28,16 +26,8 @@ def call_gemini(prompt: str, max_output_tokens: int = 512) -> str:
     # If google-genai SDK is available
     if GENAI_AVAILABLE:
         try:
-            # --- THIS IS THE NEW, CORRECT WAY ---
-            # 2. Initialize the client with the API key
             client = genai.Client(api_key=api_key)
-            
-            # 3. Generate content using the client
-            response = client.models.generate_content(
-                model=MODEL_NAME,
-                contents=prompt,
-                generation_config={"max_output_tokens": max_output_tokens}
-            )
+            response = client.models.generate_content( model=MODEL_NAME,contents=prompt)
 
             # Extract text safely
             if hasattr(response, "text"):
@@ -45,10 +35,9 @@ def call_gemini(prompt: str, max_output_tokens: int = 512) -> str:
             return str(response)
 
         except Exception as e:
-            # This will now show any new errors
             return f"[Gemini call failed: {e}]"
 
-    # Fallback REST call (This part was fine)
+    # Fallback REST call
     else:
         try:
             import requests
@@ -74,8 +63,9 @@ def call_gemini(prompt: str, max_output_tokens: int = 512) -> str:
 
         except Exception as e:
             return f"[REST fallback also failed: {e}]"
+
 # Note summarization
-def summarize_text(text: str, style: str = "concise") -> str: # Added style parameter
+def summarize_text(text: str, style: str = "concise") -> str:
     """SummarizeS given text into exam-friendly bullets points and adds memory tips.
     """
     HELLO_WORDS = ["hello","hi","hii","hiii","hiiii","helo","heloo","helloo","hey","heyy","heyyy","hya","hiya",
@@ -179,7 +169,7 @@ def generate_roadmap(goal: str, timeframe_weeks: int = 12, background: str = "")
     prompt = (
         f"You are an expert study/career mentor. Create a clean, distraction-free {timeframe_weeks}-week roadmap for a student whose main goal is: {goal}."
         "Include: weekly milestones, daily time budgets, 8-12 curated learning resources (with short notes why each), and final deliverables to show on a resume."
-        f"\nStudent background: {background}\nOutput: Use numbered weeks and bullet points; be concise.\nDon't use any weird slashes(\, or /), asterrisks(*) is unneccessary\n and provide concise and short easy to understand with bullet points way"
+        f"\nStudent background: {background}\nOutput: Use numbered weeks and bullet points; be concise.\nDon't use any weird slashes(\ or /), asterrisks(*) is unneccessary\n and provide concise and short easy to understand with bullet points way"
     )
     return call_gemini(prompt, max_output_tokens=800)
 
@@ -226,7 +216,7 @@ with col1:
         else:
             with st.spinner("Generating summary with Gemini..."):
                 prompt_style = "concise" if "Concise" in style else "elaborate"
-                summary = summarize_text(raw_text, style=prompt_style)
+                summary = summarize_text(raw_text)
                 st.success("Done — review and edit if needed")
                 st.markdown("### Summary ")
                 st.text_area("Summary output", value=summary, height=300, key="summary_out")
