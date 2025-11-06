@@ -16,8 +16,10 @@ except Exception:
 MODEL_NAME = "gemini-2.5-flash"
 
 # Utility: call Gemini (Google GenAI SDK)
+# Utility: call Gemini (Google GenAI SDK)
 def call_gemini(prompt: str, max_output_tokens: int = 512) -> str:
     
+    # 1. Get the API key from Streamlit's secrets
     api_key = st.secrets.get("GEMINI_API_KEY")
 
     if not api_key:
@@ -26,15 +28,14 @@ def call_gemini(prompt: str, max_output_tokens: int = 512) -> str:
     # If google-genai SDK is available
     if GENAI_AVAILABLE:
         try:
-            # Configure the SDK with the key
-            genai.configure(api_key=api_key)
+            # --- THIS IS THE NEW, CORRECT WAY ---
+            # 2. Initialize the client with the API key
+            client = genai.Client(api_key=api_key)
             
-            # Create the model
-            model = genai.GenerativeModel(MODEL_NAME)
-            
-            # Generate content
-            response = model.generate_content(
-                prompt,
+            # 3. Generate content using the client
+            response = client.models.generate_content(
+                model=MODEL_NAME,
+                contents=prompt,
                 generation_config={"max_output_tokens": max_output_tokens}
             )
 
@@ -44,9 +45,10 @@ def call_gemini(prompt: str, max_output_tokens: int = 512) -> str:
             return str(response)
 
         except Exception as e:
+            # This will now show any new errors
             return f"[Gemini call failed: {e}]"
 
-    # Fallback REST call
+    # Fallback REST call (This part was fine)
     else:
         try:
             import requests
@@ -72,7 +74,6 @@ def call_gemini(prompt: str, max_output_tokens: int = 512) -> str:
 
         except Exception as e:
             return f"[REST fallback also failed: {e}]"
-
 # Note summarization
 def summarize_text(text: str, style: str = "concise") -> str: # Added style parameter
     """SummarizeS given text into exam-friendly bullets points and adds memory tips.
