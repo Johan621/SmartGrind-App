@@ -14,11 +14,11 @@ except Exception:
     GENAI_AVAILABLE = False
 
 MODEL_NAME = "gemini-2.5-flash"
-API_KEY_ENV = st.secrets["GEMINI_API_KEY"]
 
 # Utility: call Gemini (Google GenAI SDK)
 def call_gemini(prompt: str, max_output_tokens: int = 512) -> str:
-    api_key = os.environ.get(API_KEY_ENV) or (st.secrets.get(API_KEY_ENV) if hasattr(st, "secrets") else None)
+    
+    api_key = st.secrets.get("GEMINI_API_KEY")
 
     if not api_key:
         return "[No Gemini API key found. Add it in .streamlit/secrets.toml as GEMINI_API_KEY.]"
@@ -26,11 +26,16 @@ def call_gemini(prompt: str, max_output_tokens: int = 512) -> str:
     # If google-genai SDK is available
     if GENAI_AVAILABLE:
         try:
-            client = genai.Client(api_key=api_key)
-
-            response = client.models.generate_content(
-                model=MODEL_NAME,
-                contents=prompt,
+            # Configure the SDK with the key
+            genai.configure(api_key=api_key)
+            
+            # Create the model
+            model = genai.GenerativeModel(MODEL_NAME)
+            
+            # Generate content
+            response = model.generate_content(
+                prompt,
+                generation_config={"max_output_tokens": max_output_tokens}
             )
 
             # Extract text safely
@@ -48,7 +53,7 @@ def call_gemini(prompt: str, max_output_tokens: int = 512) -> str:
 
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent"
             headers = {"Content-Type": "application/json"}
-            params = {"key": api_key}
+            params = {"key": api_key} # This will now have the correct key
             body = {
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {"maxOutputTokens": max_output_tokens}
@@ -69,7 +74,7 @@ def call_gemini(prompt: str, max_output_tokens: int = 512) -> str:
             return f"[REST fallback also failed: {e}]"
 
 # Note summarization
-def summarize_text(text: str, style: str = "concise_exam_notes") -> str:
+def summarize_text(text: str, style: str = "concise") -> str: # Added style parameter
     """SummarizeS given text into exam-friendly bullets points and adds memory tips.
     """
     HELLO_WORDS = ["hello","hi","hii","hiii","hiiii","helo","heloo","helloo","hey","heyy","heyyy","hya","hiya",
@@ -78,21 +83,27 @@ def summarize_text(text: str, style: str = "concise_exam_notes") -> str:
                    "good afternoon","good evening"
     ]
     user_text = text.strip().lower()
+    
     if user_text in HELLO_WORDS:
-        response = call_gemini("Send the user with ..Hey! How can I help you today?")
+        response = call_gemini("Hey! How can I help you today?")
         return response
+    if style == "elaborate":
+        style_prompt = "Explain this like I'm 5 years old. Use simple words and analogies."
     else:
-        prompt = (
-            "You are an expert study coach. Summarize the following notes using clean Markdown{text}. "
-            "DO NOT add weird characters, slashes, backslashes, escape symbols, or extra stars (*). "
-            "Write smooth, readable bullet points. "
-            "Output sections exactly as:\n\n"
-            "SUMMARY\n\n"
-            "---> bullet points here\n\n"
-            "TIPS\n\n"
-            "---> tips here\n\n"
-            f"Notes:\n{text}"
-        )
+        style_prompt = "Summarize this for a last-minute exam revision. Be concise."
+        
+    prompt = (
+        f"You are an expert study coach. {style_prompt}\n\n"
+        "Format the output using clean Markdown. "
+        "DO NOT add weird characters, slashes, backslashes, escape symbols, or extra stars (*). "
+        "Write smooth, readable bullet points. "
+        "Output sections exactly as:\n\n"
+        "SUMMARY\n\n"
+        "---> bullet points here\n\n"
+        "TIPS\n\n"
+        "---> tips here\n\n"
+        f"Notes:\n{text}"
+    )
     response = call_gemini(prompt)
     return response
 
@@ -214,7 +225,7 @@ with col1:
         else:
             with st.spinner("Generating summary with Gemini..."):
                 prompt_style = "concise" if "Concise" in style else "elaborate"
-                summary = summarize_text(raw_text)
+                summary = summarize_text(raw_text, style=prompt_style)
                 st.success("Done — review and edit if needed")
                 st.markdown("### Summary ")
                 st.text_area("Summary output", value=summary, height=300, key="summary_out")
